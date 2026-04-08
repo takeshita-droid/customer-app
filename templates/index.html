@@ -206,7 +206,7 @@
             skippedHtml = `<div style="margin-top:12px;padding:10px 14px;background:#fffbeb;border:1px solid #fcd34d;border-radius:8px;color:#92400e;font-size:13px;">
               <b>⚠️ 手動追加が必要なメンバー（コンタクト未登録）</b><br>
               ${data.skipped_members.join(', ')}<br>
-              <span style="font-size:12px;">Chatworkのグループ設定から手動で追加してください。</span>
+              <span style="font-size:12px;">Chatworkのグループ設定から手動で追加するか、<strong>APIトークンを発行したアカウント</strong>で相手とコンタクト承認済みか確認してください（別アカウントで登録しているとAPI上は未登録のままです）。診断: ログイン後にブラウザで <code>/api/chatwork-debug</code> を開くと、トークン所有者IDとAPI上のコンタクト有無が分かります。</span>
             </div>`;
           }
           result.innerHTML = `

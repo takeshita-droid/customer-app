@@ -4,7 +4,7 @@ from flask import Flask, render_template, jsonify, request, session
 from auth_env import authenticate
 from google_sheets import get_next_customer_number, increment_customer_number
 from google_drive import copy_shikin_plan
-from chatwork_api import create_chatwork_group
+from chatwork_api import create_chatwork_group, debug_members_vs_contacts
 import config
 
 app = Flask(__name__)
@@ -34,6 +34,18 @@ def login():
 def logout():
     session.clear()
     return render_template('login.html')
+
+
+@app.route('/api/chatwork-debug', methods=['GET'])
+def chatwork_debug():
+    """Chatwork APIトークン所有者と、config メンバーがコンタクトAPIに載るか確認"""
+    if not session.get('authenticated'):
+        return jsonify({'success': False, 'error': '認証が必要です'}), 401
+    try:
+        info = debug_members_vs_contacts(config.CHATWORK_MEMBERS_ADMIN)
+        return jsonify({'success': True, **info})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 @app.route('/api/create', methods=['POST'])

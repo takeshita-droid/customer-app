@@ -22,9 +22,17 @@ def get_contact_ids(token):
     """コンタクトリストのアカウントIDセットを返す"""
     headers = {'X-ChatWorkToken': token}
     response = requests.get('https://api.chatwork.com/v2/contacts', headers=headers)
-    if response.status_code != 200:
+    if response.status_code == 204:
         return set()
-    return {str(c['account_id']) for c in response.json()}
+    if response.status_code != 200:
+        raise Exception(
+            f"Chatworkコンタクト取得失敗: HTTP {response.status_code} {response.text}\n"
+            "APIトークンにコンタクト読み取り権限があるか、発行元アカウントを確認してください。"
+        )
+    data = response.json()
+    if not isinstance(data, list):
+        raise Exception(f"Chatworkコンタクト取得: 想定外のレスポンス: {data!r}")
+    return {str(c['account_id']) for c in data}
 
 
 def get_my_account_id(token):
@@ -36,26 +44,77 @@ def get_my_account_id(token):
     return response.json()['account_id']
 
 
+def debug_members_vs_contacts(admin_member_ids):
+    """
+    トークン所有者の account_id と、指定メンバーが GET /contacts に載るかを返す。
+    「コンタクト登録したのにスキップされる」調査用。
+    """
+    token = get_token()
+    my_id = get_my_account_id(token)
+    contacts = get_contact_ids(token)
+    want = [m for m in admin_member_ids if m != my_id]
+    in_contacts = [m for m in want if str(m) in contacts]
+    missing = [m for m in want if str(m) not in contacts]
+    return {
+        'token_owner_account_id': my_id,
+        'contact_count': len(contacts),
+        'requested_member_ids': want,
+        'in_contacts': in_contacts,
+        'not_in_contacts_api': missing,
+    }
+
+
+def _unique_admin_ids(my_id, admin_member_ids):
+    """自分を先頭に、重複なしで並べる"""
+    out = [my_id]
+    seen = {my_id}
+    for m in admin_member_ids:
+        if m == my_id or m in seen:
+            continue
+        seen.add(m)
+        out.append(m)
+    return out
+
+
 def create_chatwork_group(room_name, description, admin_member_ids):
     """
     Chatworkグループを作成する。
-    コンタクト未登録のメンバーは除外し、別途リストで返す。
+    公式ではメンバーは「コンタクト済みまたは同一組織内」。
+    まずは設定の全IDで作成を試し、失敗した場合のみコンタクト一覧で絞り込む。
     返り値: (room_id, room_url, added_ids, skipped_ids)
     """
     token = get_token()
     headers = {'X-ChatWorkToken': token}
 
-    # 自分自身のIDは常に含める（コンタクトリスト外でもルーム作成に必須）
     my_id = get_my_account_id(token)
+    full_list = _unique_admin_ids(my_id, admin_member_ids)
+    members_admin_full = ','.join(str(m) for m in full_list)
 
-    # コンタクト登録済みのみ絞り込む（自分は除外して別途追加）
+    data_full = {
+        'name': room_name,
+        'description': description,
+        'members_admin_ids': members_admin_full,
+    }
+
+    response = requests.post(
+        'https://api.chatwork.com/v2/rooms',
+        headers=headers,
+        data=data_full,
+    )
+
+    if response.status_code == 200:
+        room_id = response.json()['room_id']
+        room_url = f"https://www.chatwork.com/#!rid{room_id}"
+        print(f"✅ Chatworkグループ作成完了: {room_name}")
+        print(f"   ルームID: {room_id}  管理者: {full_list}")
+        return room_id, room_url, full_list, []
+
+    err_full = response.text
+
     contacts = get_contact_ids(token)
     available = [m for m in admin_member_ids if str(m) in contacts and m != my_id]
     skipped = [m for m in admin_member_ids if str(m) not in contacts and m != my_id]
-
-    # 自分を先頭に追加
     available = [my_id] + available
-
     members_admin = ','.join(str(m) for m in available)
 
     data = {
@@ -67,11 +126,14 @@ def create_chatwork_group(room_name, description, admin_member_ids):
     response = requests.post(
         'https://api.chatwork.com/v2/rooms',
         headers=headers,
-        data=data
+        data=data,
     )
 
     if response.status_code != 200:
-        raise Exception(f"Chatworkルーム作成失敗: {response.status_code} {response.text}")
+        raise Exception(
+            f"Chatworkルーム作成失敗（全員指定）: {err_full}\n"
+            f"フォールバック後も失敗: HTTP {response.status_code} {response.text}"
+        )
 
     room_id = response.json()['room_id']
     room_url = f"https://www.chatwork.com/#!rid{room_id}"
