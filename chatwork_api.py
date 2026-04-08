@@ -98,6 +98,39 @@ def _unique_admin_ids(my_id, admin_member_ids):
     return out
 
 
+def _try_add_admins_incrementally(room_id, current_admin_ids, candidate_ids, headers):
+    """
+    1人ずつ管理者追加を試す。
+    全体更新APIのため、毎回「現在の管理者一覧 + 候補1人」をPUTする。
+    """
+    added = []
+    failed = []
+    admin_ids = list(current_admin_ids)
+
+    for candidate in candidate_ids:
+        trial_admins = admin_ids + [candidate]
+        data = {
+            'members_admin_ids': ','.join(str(m) for m in trial_admins),
+            'members_member_ids': '',
+            'members_readonly_ids': '',
+        }
+        res = requests.put(
+            f'https://api.chatwork.com/v2/rooms/{room_id}/members',
+            headers=headers,
+            data=data,
+        )
+        if res.status_code == 200:
+            admin_ids.append(candidate)
+            added.append(candidate)
+        else:
+            failed.append({
+                'account_id': candidate,
+                'status_code': res.status_code,
+                'error': res.text,
+            })
+    return admin_ids, added, failed
+
+
 def create_chatwork_group(room_name, description, base_member_ids, pending_member_ids=None):
     """
     Chatworkグループを作成する。
@@ -164,6 +197,21 @@ def create_chatwork_group(room_name, description, base_member_ids, pending_membe
 
     room_id = response.json()['room_id']
     room_url = f"https://www.chatwork.com/#!rid{room_id}"
+
+    # ここで「contactsに出ないが追加可能」なIDを1人ずつ救済する
+    final_admins, recovered, failed = _try_add_admins_incrementally(
+        room_id=room_id,
+        current_admin_ids=available,
+        candidate_ids=skipped,
+        headers=headers,
+    )
+    if recovered:
+        print(f"   追加救済(個別PUT成功): {recovered}")
+    if failed:
+        print(f"   追加失敗(個別PUT): {[x['account_id'] for x in failed]}")
+
+    failed_ids = [x['account_id'] for x in failed]
+
     print(f"✅ Chatworkグループ作成完了: {room_name}")
-    print(f"   ルームID: {room_id}  追加済み: {available}  未追加: {skipped}")
-    return room_id, room_url, available, skipped
+    print(f"   ルームID: {room_id}  追加済み: {final_admins}  未追加: {failed_ids}")
+    return room_id, room_url, final_admins, failed_ids
