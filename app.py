@@ -4,7 +4,7 @@ from flask import Flask, render_template, jsonify, request, session
 from auth_env import authenticate
 from google_sheets import get_next_customer_number, increment_customer_number
 from google_drive import copy_shikin_plan
-from chatwork_api import create_chatwork_group, debug_members_vs_contacts
+from chatwork_api import create_chatwork_group, debug_members_vs_contacts, resolve_admin_member_ids
 import config
 
 app = Flask(__name__)
@@ -42,8 +42,13 @@ def chatwork_debug():
     if not session.get('authenticated'):
         return jsonify({'success': False, 'error': '認証が必要です'}), 401
     try:
-        info = debug_members_vs_contacts(config.CHATWORK_MEMBERS_ADMIN)
-        return jsonify({'success': True, **info})
+        requested = config.CHATWORK_MEMBERS_ADMIN_BASE + config.CHATWORK_MEMBERS_PENDING_APPROVAL
+        contact_info = debug_members_vs_contacts(requested)
+        resolved = resolve_admin_member_ids(
+            config.CHATWORK_MEMBERS_ADMIN_BASE,
+            config.CHATWORK_MEMBERS_PENDING_APPROVAL
+        )
+        return jsonify({'success': True, **contact_info, **resolved})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
@@ -78,7 +83,8 @@ def create_customer():
         room_id, room_url, added_members, skipped_members = create_chatwork_group(
             room_name,
             description,
-            config.CHATWORK_MEMBERS_ADMIN
+            config.CHATWORK_MEMBERS_ADMIN_BASE,
+            config.CHATWORK_MEMBERS_PENDING_APPROVAL
         )
 
         # ④ 顧客番号を+1して保存

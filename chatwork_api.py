@@ -64,6 +64,28 @@ def debug_members_vs_contacts(admin_member_ids):
     }
 
 
+def resolve_admin_member_ids(base_member_ids, pending_member_ids=None):
+    """
+    常時追加メンバー + 承認待ちメンバーを解決する。
+    承認待ちは contacts に載ったIDのみ自動復帰する。
+    """
+    token = get_token()
+    my_id = get_my_account_id(token)
+    contacts = get_contact_ids(token)
+
+    pending_member_ids = pending_member_ids or []
+    recovered_pending = [m for m in pending_member_ids if str(m) in contacts and m != my_id]
+    still_pending = [m for m in pending_member_ids if str(m) not in contacts and m != my_id]
+
+    target_admin_ids = _unique_admin_ids(my_id, base_member_ids + recovered_pending)
+    return {
+        'token_owner_account_id': my_id,
+        'target_admin_ids': target_admin_ids,
+        'recovered_pending_ids': recovered_pending,
+        'still_pending_ids': still_pending,
+    }
+
+
 def _unique_admin_ids(my_id, admin_member_ids):
     """自分を先頭に、重複なしで並べる"""
     out = [my_id]
@@ -76,7 +98,7 @@ def _unique_admin_ids(my_id, admin_member_ids):
     return out
 
 
-def create_chatwork_group(room_name, description, admin_member_ids):
+def create_chatwork_group(room_name, description, base_member_ids, pending_member_ids=None):
     """
     Chatworkグループを作成する。
     公式ではメンバーは「コンタクト済みまたは同一組織内」。
@@ -86,8 +108,10 @@ def create_chatwork_group(room_name, description, admin_member_ids):
     token = get_token()
     headers = {'X-ChatWorkToken': token}
 
-    my_id = get_my_account_id(token)
-    full_list = _unique_admin_ids(my_id, admin_member_ids)
+    resolved = resolve_admin_member_ids(base_member_ids, pending_member_ids)
+    my_id = resolved['token_owner_account_id']
+    full_list = resolved['target_admin_ids']
+    still_pending = resolved['still_pending_ids']
     members_admin_full = ','.join(str(m) for m in full_list)
 
     data_full = {
@@ -107,13 +131,16 @@ def create_chatwork_group(room_name, description, admin_member_ids):
         room_url = f"https://www.chatwork.com/#!rid{room_id}"
         print(f"✅ Chatworkグループ作成完了: {room_name}")
         print(f"   ルームID: {room_id}  管理者: {full_list}")
-        return room_id, room_url, full_list, []
+        if still_pending:
+            print(f"   保留中(contacts未承認): {still_pending}")
+        return room_id, room_url, full_list, still_pending
 
     err_full = response.text
 
     contacts = get_contact_ids(token)
-    available = [m for m in admin_member_ids if str(m) in contacts and m != my_id]
-    skipped = [m for m in admin_member_ids if str(m) not in contacts and m != my_id]
+    requested = [m for m in base_member_ids + (pending_member_ids or []) if m != my_id]
+    available = [m for m in requested if str(m) in contacts]
+    skipped = [m for m in requested if str(m) not in contacts]
     available = [my_id] + available
     members_admin = ','.join(str(m) for m in available)
 
