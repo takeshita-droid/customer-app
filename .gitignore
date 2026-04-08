@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+*.pyo
+.env
+print_env_vars.py
+setup.py
+*.log

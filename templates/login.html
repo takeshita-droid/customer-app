@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ログイン | 平松建築</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Helvetica Neue', Arial, 'Hiragino Kaku Gothic ProN', sans-serif;
+      background: #f0f2f5;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .card {
+      background: #fff;
+      border-radius: 16px;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.10);
+      padding: 48px 56px;
+      width: 400px;
+      max-width: 95vw;
+      text-align: center;
+    }
+    .logo { font-size: 13px; color: #999; letter-spacing: 0.08em; margin-bottom: 8px; }
+    h1 { font-size: 22px; font-weight: 700; color: #1a1a1a; margin-bottom: 32px; }
+    input[type="password"] {
+      width: 100%;
+      padding: 14px 16px;
+      border: 1.5px solid #e5e7eb;
+      border-radius: 8px;
+      font-size: 15px;
+      margin-bottom: 16px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    input[type="password"]:focus { border-color: #2563eb; }
+    .btn {
+      width: 100%;
+      padding: 14px;
+      background: #2563eb;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-size: 15px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .btn:hover { background: #1d4ed8; }
+    .error {
+      display: none;
+      margin-top: 12px;
+      color: #dc2626;
+      font-size: 13px;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="logo">平松建築株式会社</div>
+    <h1>新規顧客登録システム</h1>
+    <input type="password" id="password" placeholder="パスワードを入力" onkeydown="if(event.key==='Enter')login()">
+    <button class="btn" onclick="login()">ログイン</button>
+    <div class="error" id="error">パスワードが違います</div>
+  </div>
+  <script>
+    async function login() {
+      const pw = document.getElementById('password').value;
+      const form = new FormData();
+      form.append('password', pw);
+      const res = await fetch('/login', { method: 'POST', body: form });
+      if (res.ok) {
+        location.href = '/';
+      } else {
+        document.getElementById('error').style.display = 'block';
+      }
+    }
+    // 自動フォーカス
+    document.getElementById('password').focus();
+  </script>
+</body>
+</html>

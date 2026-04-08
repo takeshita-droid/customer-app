@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>新規顧客登録 | 平松建築</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Helvetica Neue', Arial, 'Hiragino Kaku Gothic ProN', sans-serif;
+      background: #f0f2f5;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .card {
+      background: #fff;
+      border-radius: 16px;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.10);
+      padding: 48px 56px;
+      width: 480px;
+      max-width: 95vw;
+    }
+
+    .logo {
+      font-size: 13px;
+      color: #999;
+      letter-spacing: 0.08em;
+      margin-bottom: 8px;
+    }
+
+    h1 {
+      font-size: 24px;
+      font-weight: 700;
+      color: #1a1a1a;
+      margin-bottom: 32px;
+    }
+
+    .info-box {
+      background: #f7f8fa;
+      border-radius: 10px;
+      padding: 16px 20px;
+      margin-bottom: 28px;
+      font-size: 14px;
+      color: #555;
+      line-height: 1.8;
+    }
+
+    .info-box ul {
+      padding-left: 1.2em;
+    }
+
+    .info-box li {
+      margin-bottom: 4px;
+    }
+
+    .btn-create {
+      width: 100%;
+      padding: 18px;
+      background: #2563eb;
+      color: #fff;
+      border: none;
+      border-radius: 10px;
+      font-size: 17px;
+      font-weight: 700;
+      cursor: pointer;
+      letter-spacing: 0.05em;
+      transition: background 0.2s;
+    }
+
+    .btn-create:hover:not(:disabled) {
+      background: #1d4ed8;
+    }
+
+    .btn-create:disabled {
+      background: #93c5fd;
+      cursor: not-allowed;
+    }
+
+    .spinner {
+      display: none;
+      margin: 28px auto 0;
+      text-align: center;
+      color: #2563eb;
+      font-size: 14px;
+    }
+
+    .spinner::before {
+      content: '';
+      display: inline-block;
+      width: 20px;
+      height: 20px;
+      border: 3px solid #bfdbfe;
+      border-top-color: #2563eb;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      vertical-align: middle;
+      margin-right: 8px;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .result {
+      display: none;
+      margin-top: 28px;
+      border-radius: 10px;
+      padding: 20px 24px;
+      font-size: 14px;
+      line-height: 1.8;
+    }
+
+    .result.success {
+      background: #f0fdf4;
+      border: 1px solid #86efac;
+      color: #166534;
+    }
+
+    .result.error {
+      background: #fef2f2;
+      border: 1px solid #fca5a5;
+      color: #991b1b;
+    }
+
+    .result strong {
+      display: block;
+      font-size: 15px;
+      margin-bottom: 10px;
+    }
+
+    .result a {
+      color: #2563eb;
+      word-break: break-all;
+    }
+
+    .logout {
+      position: fixed;
+      top: 16px;
+      right: 20px;
+      font-size: 12px;
+      color: #aaa;
+      text-decoration: none;
+    }
+    .logout:hover { color: #555; }
+    .badge {
+      display: inline-block;
+      background: #dbeafe;
+      color: #1d4ed8;
+      font-size: 20px;
+      font-weight: 800;
+      padding: 6px 14px;
+      border-radius: 6px;
+      letter-spacing: 0.1em;
+      margin: 4px 0 10px;
+    }
+  </style>
+</head>
+<body>
+  <a href="/logout" class="logout">ログアウト</a>
+  <div class="card">
+    <div class="logo">平松建築株式会社</div>
+    <h1>新規顧客登録</h1>
+
+    <div class="info-box">
+      ボタンを押すと以下が自動で作成されます：
+      <ul>
+        <li>顧客番号の自動採番</li>
+        <li>資金計画スプレッドシートのコピー</li>
+        <li>Chatworkグループの作成・メンバー追加</li>
+      </ul>
+    </div>
+
+    <button class="btn-create" id="createBtn" onclick="createCustomer()">
+      作成する
+    </button>
+
+    <div class="spinner" id="spinner">処理中です。しばらくお待ちください…</div>
+
+    <div class="result" id="result"></div>
+  </div>
+
+  <script>
+    async function createCustomer() {
+      const btn = document.getElementById('createBtn');
+      const spinner = document.getElementById('spinner');
+      const result = document.getElementById('result');
+
+      btn.disabled = true;
+      spinner.style.display = 'block';
+      result.style.display = 'none';
+
+      try {
+        const res = await fetch('/api/create', { method: 'POST' });
+        const data = await res.json();
+
+        spinner.style.display = 'none';
+
+        if (data.success) {
+          result.className = 'result success';
+          let skippedHtml = '';
+          if (data.skipped_members && data.skipped_members.length > 0) {
+            skippedHtml = `<div style="margin-top:12px;padding:10px 14px;background:#fffbeb;border:1px solid #fcd34d;border-radius:8px;color:#92400e;font-size:13px;">
+              <b>⚠️ 手動追加が必要なメンバー（コンタクト未登録）</b><br>
+              ${data.skipped_members.join(', ')}<br>
+              <span style="font-size:12px;">Chatworkのグループ設定から手動で追加してください。</span>
+            </div>`;
+          }
+          result.innerHTML = `
+            <strong>✅ 作成が完了しました</strong>
+            <div class="badge">${data.customer_no}</div>
+            <b>資金計画：</b><a href="${data.spreadsheet_url}" target="_blank">${data.spreadsheet_name}</a><br>
+            <b>Chatwork：</b><a href="${data.chatwork_room_url}" target="_blank">${data.chatwork_room_name}</a>
+            ${skippedHtml}
+          `;
+        } else {
+          result.className = 'result error';
+          result.innerHTML = `<strong>❌ エラーが発生しました</strong>${data.error}`;
+        }
+      } catch (e) {
+        spinner.style.display = 'none';
+        result.className = 'result error';
+        result.innerHTML = `<strong>❌ 通信エラー</strong>${e.message}`;
+      }
+
+      result.style.display = 'block';
+      btn.disabled = false;
+    }
+  </script>
+</body>
+</html>
